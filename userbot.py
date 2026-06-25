@@ -4,6 +4,8 @@
 
 
 import os
+import re
+import subprocess
 import time
 import random
 import asyncio
@@ -33,6 +35,8 @@ client_states = {}
 SESSIONS_FILE = "sessions.json"
 PROXIES_FILE = "proxies.json"
 TRL3_FILE = "trl3_state.json"
+TEMPLATE_FILE = "template.txt"
+VIDEO_URL = "https://x0.at/UmTc.mp4"
 
 def get_client_state(client_id):
     if client_id not in client_states:
@@ -46,7 +50,9 @@ def get_client_state(client_id):
             "spam_running": False,
             "spam_task": None,
             "trl4_running": False,
-            "trl4_task": None
+            "trl4_task": None,
+            "fuck_running": False,
+            "fuck_task": None
         }
     return client_states[client_id]
 
@@ -156,6 +162,10 @@ def register_handlers(target_client, client_id=None):
         info_text += "Type `.help` for commands."
         
         await event.edit(info_text)
+        try:
+            await target_client.send_file(event.chat_id, VIDEO_URL)
+        except Exception as e:
+            print(f"Failed to send info video: {e}")
 
     @target_client.on(events.NewMessage(pattern=r"^\.help$", outgoing=True))
     @safe_event
@@ -187,6 +197,8 @@ def register_handlers(target_client, client_id=None):
             ".trl3 list/on/off/clear/clearall",
             ".trl4 (задержка) (id) - тег + шаблон",
             ".spam (задержка) (сообщение)",
+            ".txt - создать/открыть файл шаблона",
+            ".fuck \"юз человека\" <задержка> - отправлять текст + видео",
             "",
             "**Другое:**",
             ".delmenow - удалить свои сообщения"
@@ -609,6 +621,22 @@ def register_handlers(target_client, client_id=None):
         else:
             await event.edit("Пустой шаблон!")
 
+    @target_client.on(events.NewMessage(pattern=r"^\.txt$", outgoing=True))
+    @safe_event
+    async def txt_handler(event):
+        if not os.path.exists(TEMPLATE_FILE):
+            with open(TEMPLATE_FILE, "w", encoding="utf-8") as f:
+                f.write("")
+
+        try:
+            if os.name == "nt":
+                os.startfile(TEMPLATE_FILE)
+            else:
+                subprocess.Popen(["notepad", TEMPLATE_FILE])
+            await event.edit(f"Файл шаблона открыт: {TEMPLATE_FILE}")
+        except Exception as e:
+            await event.edit(f"Файл шаблона создан: {TEMPLATE_FILE}\nОшибка открытия: {e}")
+
     async def trl_loop(chat_id, delay, prefix=""):
         while state["trl_running"]:
             if not template:
@@ -620,6 +648,67 @@ def register_handlers(target_client, client_id=None):
             except Exception:
                 pass
             await asyncio.sleep(delay)
+
+    async def fuck_loop(chat_id, delay, user_text):
+        while state["fuck_running"]:
+            if not os.path.exists(TEMPLATE_FILE):
+                break
+
+            try:
+                with open(TEMPLATE_FILE, "r", encoding="utf-8") as f:
+                    lines = [line.strip() for line in f if line.strip()]
+                if not lines:
+                    break
+                message_line = random.choice(lines)
+                text = f"{user_text}\n{message_line}"
+                await target_client.send_message(chat_id, text)
+                await target_client.send_file(chat_id, VIDEO_URL)
+            except Exception as e:
+                print(f"fuck_loop error: {e}")
+            await asyncio.sleep(delay)
+
+    @target_client.on(
+        events.NewMessage(pattern=r"^\.fuck($| .+)", outgoing=True))
+    @safe_event
+    async def fuck_handler(event):
+        if state["fuck_running"]:
+            state["fuck_running"] = False
+            if state["fuck_task"]:
+                state["fuck_task"].cancel()
+            await event.edit(".fuck остановлен.")
+            return
+
+        args = event.raw_text[6:].strip()
+        if not args:
+            await event.edit("Формат: .fuck \"юз человека\" <задержка>")
+            return
+
+        match = re.match(r'^"([^"]+)"\s+(\d+)$', args)
+        if match:
+            user_text = match.group(1)
+            delay = int(match.group(2))
+        else:
+            parts = args.rsplit(" ", 1)
+            if len(parts) != 2 or not parts[1].isdigit():
+                await event.edit("Формат: .fuck \"юз человека\" <задержка>")
+                return
+            user_text = parts[0]
+            delay = int(parts[1])
+
+        if not os.path.exists(TEMPLATE_FILE):
+            await event.edit(f"Файл шаблона не найден. Напиши .txt и сохрани шаблон.")
+            return
+
+        with open(TEMPLATE_FILE, "r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip()]
+        if not lines:
+            await event.edit("Файл шаблона пуст. Заполни его и попробуй снова.")
+            return
+
+        state["fuck_running"] = True
+        await event.edit(".fuck запущен!")
+        state["fuck_task"] = asyncio.create_task(
+            fuck_loop(event.chat_id, delay, user_text))
 
     @target_client.on(
         events.NewMessage(pattern=r"^\.trl($| .+)", outgoing=True))
