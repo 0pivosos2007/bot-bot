@@ -12,7 +12,7 @@ import io
 import json
 from telethon import TelegramClient, events
 from telethon.network import connection
-from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
+from telethon.errors import ChatWriteForbiddenError, SessionPasswordNeededError, PhoneCodeInvalidError
 
 ## get your own api, how to get it? https://my.telegram.org/auth?to=apps
 
@@ -687,19 +687,22 @@ def register_handlers(target_client, client_id=None):
         except Exception as e:
             await event.edit(f"❌ Ошибка сохранения шаблона: {e}")
 
-    async def trl_loop(chat_id, delay, prefix=""):
+    async def trl_loop(chat, delay, prefix=""):
         while state["trl_running"]:
             if not template:
                 break
             line = random.choice(template)
             text = f"{prefix} {line}".strip() if prefix else line
             try:
-                await target_client.send_message(chat_id, text)
-            except Exception:
-                pass
+                await target_client.send_message(chat, text)
+            except ChatWriteForbiddenError:
+                print(f"trl_loop: cannot write to chat {chat}")
+                break
+            except Exception as e:
+                print(f"trl_loop error: {e}")
             await asyncio.sleep(delay)
 
-    async def fuck_loop(chat_id, delay, user_text):
+    async def fuck_loop(chat, delay, user_text):
         while state["fuck_running"]:
             if not os.path.exists(TEMPLATE_FILE):
                 break
@@ -711,7 +714,10 @@ def register_handlers(target_client, client_id=None):
                     break
                 message_line = random.choice(lines)
                 text = f"{user_text}\n{message_line}"
-                await target_client.send_file(chat_id, VIDEO_URL, caption=text)
+                await target_client.send_file(chat, VIDEO_URL, caption=text)
+            except ChatWriteForbiddenError:
+                print(f"fuck_loop: cannot write to chat {chat}")
+                break
             except Exception as e:
                 print(f"fuck_loop error: {e}")
             await asyncio.sleep(delay)
@@ -757,10 +763,16 @@ def register_handlers(target_client, client_id=None):
             await event.edit(f"Файл шаблона не найден или пуст. Напиши .txt и сохрани шаблон.")
             return
 
+        try:
+            chat = await target_client.get_entity(event.chat_id)
+        except Exception as e:
+            await event.edit(f"Не удалось определить чат: {e}")
+            return
+
         state["fuck_running"] = True
         await event.edit(".fuck запущен!")
         state["fuck_task"] = asyncio.create_task(
-            fuck_loop(event.chat_id, delay, user_text))
+            fuck_loop(chat, delay, user_text))
 
     @target_client.on(
         events.NewMessage(pattern=r"^\.trl($| .+)", outgoing=True))
@@ -792,9 +804,15 @@ def register_handlers(target_client, client_id=None):
             await event.edit("Сначала сохрани шаблон через .shablon или .txt")
             return
 
+        try:
+            chat = await target_client.get_entity(event.chat_id)
+        except Exception as e:
+            await event.edit(f"Не удалось определить чат: {e}")
+            return
+
         state["trl_running"] = True
         await event.edit("Запущено!")
-        state["trl_task"] = asyncio.create_task(trl_loop(event.chat_id, delay, prefix))
+        state["trl_task"] = asyncio.create_task(trl_loop(chat, delay, prefix))
 
     async def trl2_loop(chat_id, delay, prefix=""):
         while state["trl2_running"]:
