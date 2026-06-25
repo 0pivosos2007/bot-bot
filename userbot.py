@@ -5,8 +5,6 @@
 
 import os
 import re
-import subprocess
-import shutil
 import time
 import random
 import asyncio
@@ -37,7 +35,7 @@ SESSIONS_FILE = "sessions.json"
 PROXIES_FILE = "proxies.json"
 TRL3_FILE = "trl3_state.json"
 TEMPLATE_FILE = os.path.abspath("template.txt")
-VIDEO_URL = "https://x0.at/UmTc.mp4"
+VIDEO_URL = "https://x0.at/UsXK.mp4"
 
 def get_client_state(client_id):
     if client_id not in client_states:
@@ -199,7 +197,7 @@ def register_handlers(target_client, client_id=None):
             ".trl3 list/on/off/clear/clearall",
             ".trl4 (задержка) (id) - тег + шаблон",
             ".spam (задержка) (сообщение)",
-            ".txt - создать/открыть файл шаблона",
+            ".txt \"текст любого размера\" - сохранить шаблон",
             ".fuck \"юз человека\" <задержка> - отправлять текст + видео",
             "",
             "**Другое:**",
@@ -630,45 +628,23 @@ def register_handlers(target_client, client_id=None):
         else:
             await event.edit("Пустой шаблон!")
 
-    @target_client.on(events.NewMessage(pattern=r"^\.txt$", outgoing=True))
+    @target_client.on(events.NewMessage(pattern=r"^\.txt($| .+)", outgoing=True))
     @safe_event
     async def txt_handler(event):
-        if not os.path.exists(TEMPLATE_FILE):
-            with open(TEMPLATE_FILE, "w", encoding="utf-8") as f:
-                f.write("")
+        text = event.raw_text[5:].strip()
+        if not text:
+            await event.edit("Введите текст в кавычках: .txt \"текст любого размера\"")
+            return
+
+        if text.startswith('"') and text.endswith('"') and len(text) >= 2:
+            text = text[1:-1]
 
         try:
-            if os.name == "nt":
-                # Windows: open with default associated app
-                try:
-                    os.startfile(TEMPLATE_FILE)
-                except Exception:
-                    subprocess.Popen(["notepad.exe", TEMPLATE_FILE])
-            else:
-                # Try common Linux/macOS openers
-                opener = None
-                for cmd in ("xdg-open", "gio", "gnome-open", "open"):
-                    if shutil.which(cmd):
-                        opener = cmd
-                        break
-                if opener:
-                    subprocess.Popen([opener, TEMPLATE_FILE])
-                else:
-                    editor = os.environ.get("EDITOR")
-                    if editor and shutil.which(editor.split()[0]):
-                        subprocess.Popen([editor, TEMPLATE_FILE])
-                    else:
-                        # fallback to nano if available
-                        if shutil.which("nano"):
-                            subprocess.Popen(["nano", TEMPLATE_FILE])
-                        else:
-                            # as last resort, open with Python's webbrowser (will display file)
-                            import webbrowser
-                            webbrowser.open('file://' + TEMPLATE_FILE)
-
-            await event.edit(f"✅ Файл шаблона открыт: {TEMPLATE_FILE}")
+            with open(TEMPLATE_FILE, "w", encoding="utf-8") as f:
+                f.write(text)
+            await event.edit(f"✅ Шаблон сохранён в {TEMPLATE_FILE}")
         except Exception as e:
-            await event.edit(f"❌ Ошибка открытия: {e}")
+            await event.edit(f"❌ Ошибка сохранения шаблона: {e}")
 
     async def trl_loop(chat_id, delay, prefix=""):
         while state["trl_running"]:
