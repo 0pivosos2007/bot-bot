@@ -35,7 +35,7 @@ client_states = {}
 SESSIONS_FILE = "sessions.json"
 PROXIES_FILE = "proxies.json"
 TRL3_FILE = "trl3_state.json"
-TEMPLATE_FILE = "template.txt"
+TEMPLATE_FILE = os.path.abspath("template.txt")
 VIDEO_URL = "https://x0.at/UmTc.mp4"
 
 def get_client_state(client_id):
@@ -629,13 +629,10 @@ def register_handlers(target_client, client_id=None):
                 f.write("")
 
         try:
-            if os.name == "nt":
-                os.startfile(TEMPLATE_FILE)
-            else:
-                subprocess.Popen(["notepad", TEMPLATE_FILE])
-            await event.edit(f"Файл шаблона открыт: {TEMPLATE_FILE}")
+            subprocess.Popen(f"notepad.exe {TEMPLATE_FILE}")
+            await event.edit(f"✅ Файл шаблона открыт: {TEMPLATE_FILE}")
         except Exception as e:
-            await event.edit(f"Файл шаблона создан: {TEMPLATE_FILE}\nОшибка открытия: {e}")
+            await event.edit(f"❌ Ошибка открытия: {e}")
 
     async def trl_loop(chat_id, delay, prefix=""):
         while state["trl_running"]:
@@ -661,8 +658,7 @@ def register_handlers(target_client, client_id=None):
                     break
                 message_line = random.choice(lines)
                 text = f"{user_text}\n{message_line}"
-                await target_client.send_message(chat_id, text)
-                await target_client.send_file(chat_id, VIDEO_URL)
+                await target_client.send_file(chat_id, VIDEO_URL, caption=text)
             except Exception as e:
                 print(f"fuck_loop error: {e}")
             await asyncio.sleep(delay)
