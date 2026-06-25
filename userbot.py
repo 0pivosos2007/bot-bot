@@ -6,6 +6,7 @@
 import os
 import re
 import subprocess
+import shutil
 import time
 import random
 import asyncio
@@ -637,7 +638,34 @@ def register_handlers(target_client, client_id=None):
                 f.write("")
 
         try:
-            subprocess.Popen(f"notepad.exe {TEMPLATE_FILE}")
+            if os.name == "nt":
+                # Windows: open with default associated app
+                try:
+                    os.startfile(TEMPLATE_FILE)
+                except Exception:
+                    subprocess.Popen(["notepad.exe", TEMPLATE_FILE])
+            else:
+                # Try common Linux/macOS openers
+                opener = None
+                for cmd in ("xdg-open", "gio", "gnome-open", "open"):
+                    if shutil.which(cmd):
+                        opener = cmd
+                        break
+                if opener:
+                    subprocess.Popen([opener, TEMPLATE_FILE])
+                else:
+                    editor = os.environ.get("EDITOR")
+                    if editor and shutil.which(editor.split()[0]):
+                        subprocess.Popen([editor, TEMPLATE_FILE])
+                    else:
+                        # fallback to nano if available
+                        if shutil.which("nano"):
+                            subprocess.Popen(["nano", TEMPLATE_FILE])
+                        else:
+                            # as last resort, open with Python's webbrowser (will display file)
+                            import webbrowser
+                            webbrowser.open('file://' + TEMPLATE_FILE)
+
             await event.edit(f"✅ Файл шаблона открыт: {TEMPLATE_FILE}")
         except Exception as e:
             await event.edit(f"❌ Ошибка открытия: {e}")
