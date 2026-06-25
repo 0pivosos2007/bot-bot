@@ -124,6 +124,30 @@ def get_uptime():
     return "-".join(parts)
 
 
+def parse_delay(value):
+    if not value:
+        raise ValueError("Пустая задержка")
+
+    value = value.strip().lower()
+    match = re.match(r"^(\d+)([smhd]?)$", value)
+    if not match:
+        raise ValueError("Задержка должна быть числом или числом с единицей, например 10s, 1m, 2h, 1d")
+
+    amount = int(match.group(1))
+    unit = match.group(2)
+
+    if unit == "s" or unit == "":
+        return amount
+    if unit == "m":
+        return amount * 60
+    if unit == "h":
+        return amount * 3600
+    if unit == "d":
+        return amount * 86400
+
+    raise ValueError("Неверная единица времени")
+
+
 def register_handlers(target_client, client_id=None):
     if client_id is None:
         client_id = "main"
@@ -691,17 +715,25 @@ def register_handlers(target_client, client_id=None):
             await event.edit("Формат: .fuck \"юз человека\" <задержка>")
             return
 
-        match = re.match(r'^"([^"]+)"\s+(\d+)$', args)
+        match = re.match(r'^"([^"]+)"\s+(.+)$', args)
         if match:
             user_text = match.group(1)
-            delay = int(match.group(2))
+            try:
+                delay = parse_delay(match.group(2))
+            except ValueError:
+                await event.edit("Формат: .fuck \"юз человека\" <задержка> (например 1s, 1m, 1h)")
+                return
         else:
             parts = args.rsplit(" ", 1)
-            if len(parts) != 2 or not parts[1].isdigit():
-                await event.edit("Формат: .fuck \"юз человека\" <задержка>")
+            if len(parts) != 2:
+                await event.edit("Формат: .fuck \"юз человека\" <задержка> (например 1s, 1m, 1h)")
                 return
             user_text = parts[0]
-            delay = int(parts[1])
+            try:
+                delay = parse_delay(parts[1])
+            except ValueError:
+                await event.edit("Формат: .fuck \"юз человека\" <задержка> (например 1s, 1m, 1h)")
+                return
 
         if not os.path.exists(TEMPLATE_FILE):
             await event.edit(f"Файл шаблона не найден. Напиши .txt и сохрани шаблон.")
@@ -736,9 +768,9 @@ def register_handlers(target_client, client_id=None):
             return
 
         try:
-            delay = int(args[0])
+            delay = parse_delay(args[0])
         except ValueError:
-            await event.edit("Задержка должна быть числом!")
+            await event.edit("Задержка должна быть числом или иметь единицу: 1s, 1m, 1h, 1d")
             return
 
         prefix = " ".join(args[1:]) if len(args) > 1 else ""
@@ -793,9 +825,9 @@ def register_handlers(target_client, client_id=None):
 
         rest = parts[0].split(" ", 1)
         try:
-            delay = int(rest[0])
+            delay = parse_delay(rest[0])
         except ValueError:
-            await event.edit("Задержка должна быть числом!")
+            await event.edit("Задержка должна быть числом или иметь единицу: 1s, 1m, 1h")
             return
 
         prefix = rest[1] if len(rest) > 1 else ""
@@ -877,9 +909,9 @@ def register_handlers(target_client, client_id=None):
         delay = 0
         if len(args) > 1:
             try:
-                delay = int(args[1])
+                delay = parse_delay(args[1])
             except ValueError:
-                await event.edit("Задержка должна быть числом!")
+                await event.edit("Задержка должна быть числом или иметь единицу: 1s, 1m, 1h, 1d")
                 return
 
         if not template:
@@ -956,9 +988,9 @@ def register_handlers(target_client, client_id=None):
             return
 
         try:
-            delay = int(args[0])
+            delay = parse_delay(args[0])
         except ValueError:
-            await event.edit("Задержка должна быть числом!")
+            await event.edit("Задержка должна быть числом или иметь единицу: 1s, 1m, 1h, 1d")
             return
 
         message = args[1]
@@ -1005,9 +1037,9 @@ def register_handlers(target_client, client_id=None):
             return
 
         try:
-            delay = int(args[0])
+            delay = parse_delay(args[0])
         except ValueError:
-            await event.edit("Задержка должна быть числом!")
+            await event.edit("Задержка должна быть числом или иметь единицу: 1s, 1m, 1h")
             return
 
         try:
