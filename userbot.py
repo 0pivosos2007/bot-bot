@@ -161,11 +161,12 @@ def register_handlers(target_client, client_id=None):
         info_text += f"**Ping:** {latency_ms:.0f}ms\n\n"
         info_text += "Type `.help` for commands."
         
-        await event.edit(info_text)
         try:
-            await target_client.send_file(event.chat_id, VIDEO_URL)
+            await target_client.send_file(event.chat_id, VIDEO_URL, caption=info_text, force_document=False)
+            await event.delete()
         except Exception as e:
             print(f"Failed to send info video: {e}")
+            await event.edit(info_text)
 
     @target_client.on(events.NewMessage(pattern=r"^\.help$", outgoing=True))
     @safe_event
@@ -203,7 +204,14 @@ def register_handlers(target_client, client_id=None):
             "**Другое:**",
             ".delmenow - удалить свои сообщения"
         ]
-        await event.edit("\n".join(commands))
+        help_text = "\n".join(commands)
+        
+        try:
+            await target_client.send_file(event.chat_id, VIDEO_URL, caption=help_text, force_document=False)
+            await event.delete()
+        except Exception as e:
+            print(f"Failed to send help video: {e}")
+            await event.edit(help_text)
 
     @target_client.on(events.NewMessage(pattern=r"^\.uptime$", outgoing=True))
     @safe_event
